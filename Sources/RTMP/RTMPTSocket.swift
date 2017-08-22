@@ -13,7 +13,7 @@ final class RTMPTSocket: NSObject, RTMPSocketCompatible {
         didSet {
             if (connected) {
                 handshake.timestamp = Date().timeIntervalSince1970
-                doOutput(bytes: handshake.c0c1packet)
+                doOutput(data: handshake.c0c1packet)
                 readyState = .versionSent
                 return
             }
@@ -56,13 +56,16 @@ final class RTMPTSocket: NSObject, RTMPSocketCompatible {
     private var baseURL:URL!
     private var session:URLSession!
     private var request:URLRequest!
-    private var c2packet:[UInt8] = []
+    private var c2packet:Data = Data()
     private var handshake:RTMPHandshake = RTMPHandshake()
     private let outputQueue:DispatchQueue = DispatchQueue(label: "com.haishinkit.HaishinKit.RTMPTSocket.output")
     private var connectionID:String?
     private var isRequesting:Bool = false
-    private var outputBuffer:[UInt8] = []
+    private var outputBuffer:Data = Data()
     private var lastResponse:Date = Date()
+    private var lastRequestPathComponent:String?
+    private var lastRequestData:Data?
+    private var isRetryingRequest:Bool = true
 
     override init() {
         super.init()
@@ -92,8 +95,8 @@ final class RTMPTSocket: NSObject, RTMPSocketCompatible {
 
         outputQueue.sync {
             self.outputBuffer.append(contentsOf: bytes)
-            if (!self.isRequesting) {
-                self.doOutput(bytes: self.outputBuffer)
+            if !self.isRequesting {
+                self.doOutput(data: self.outputBuffer)
                 self.outputBuffer.removeAll()
             }
         }
@@ -123,20 +126,34 @@ final class RTMPTSocket: NSObject, RTMPSocketCompatible {
 
         lastResponse = Date()
 
-        if (logger.isEnabledFor(level: .verbose)) {
-            logger.verbose("\(String(describing: data)):\(String(describing: response)):\(String(describing: error))")
+        if (logger.isEnabledFor(level: .trace)) {
+            logger.trace("\(String(describing: data)):\(String(describing: response)):\(String(describing: error))")
         }
 
         if let error:Error = error {
             logger.error("\(error)")
+
+            if let lastRequestPathComponent: String = self.lastRequestPathComponent,
+               let lastRequestData: Data = self.lastRequestData, !isRetryingRequest {
+                if (logger.isEnabledFor(level: .trace)) {
+                    logger.trace("Will retry request for path=\(lastRequestPathComponent)")
+                }
+                outputQueue.sync {
+                    isRetryingRequest = true
+                    doRequest(lastRequestPathComponent, lastRequestData, listen)
+                }
+            }
+
             return
         }
+
+        isRetryingRequest = false
 
         outputQueue.sync {
             if (self.outputBuffer.isEmpty) {
                 self.isRequesting = false
             } else {
-                self.doOutput(bytes: outputBuffer)
+                self.doOutput(data: outputBuffer)
                 self.outputBuffer.removeAll()
             }
         }
@@ -158,7 +175,7 @@ final class RTMPTSocket: NSObject, RTMPSocketCompatible {
             if (inputBuffer.count < RTMPHandshake.sigSize + 1) {
                 break
             }
-            c2packet = handshake.c2packet(inputBuffer.bytes)
+            c2packet = handshake.c2packet(inputBuffer)
             inputBuffer.removeSubrange(0...RTMPHandshake.sigSize)
             readyState = .ackSent
             fallthrough
@@ -185,8 +202,8 @@ final class RTMPTSocket: NSObject, RTMPSocketCompatible {
             logger.error("\(error)")
         }
         doRequest("/open/1", Data([0x00]), didOpen)
-        if (logger.isEnabledFor(level: .verbose)) {
-            logger.verbose("\(String(describing: data?.bytes)):\(String(describing: response))")
+        if (logger.isEnabledFor(level: .trace)) {
+            logger.trace("\(String(describing: data?.bytes)):\(String(describing: response))")
         }
     }
 
@@ -199,8 +216,8 @@ final class RTMPTSocket: NSObject, RTMPSocketCompatible {
         }
         connectionID = String(data: data, encoding: String.Encoding.utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
         doRequest("/idle/\(connectionID!)/0", Data([0x00]), didIdle0)
-        if (logger.isEnabledFor(level: .verbose)) {
-            logger.verbose("\(data.bytes):\(String(describing: response))")
+        if (logger.isEnabledFor(level: .trace)) {
+            logger.trace("\(data.bytes):\(String(describing: response))")
         }
     }
 
@@ -209,8 +226,8 @@ final class RTMPTSocket: NSObject, RTMPSocketCompatible {
             logger.error("\(error)")
         }
         connected = true
-        if (logger.isEnabledFor(level: .verbose)) {
-            logger.verbose("\(String(describing: data?.bytes)):\(String(describing: response))")
+        if (logger.isEnabledFor(level: .trace)) {
+            logger.trace("\(String(describing: data?.bytes)):\(String(describing: response))")
         }
     }
 
@@ -219,8 +236,8 @@ final class RTMPTSocket: NSObject, RTMPSocketCompatible {
             logger.error("\(error)")
         }
         connected = false
-        if (logger.isEnabledFor(level: .verbose)) {
-            logger.verbose("\(String(describing: data?.bytes)):\(String(describing: response))")
+        if (logger.isEnabledFor(level: .trace)) {
+            logger.trace("\(String(describing: data?.bytes)):\(String(describing: response))")
         }
     }
 
@@ -239,30 +256,32 @@ final class RTMPTSocket: NSObject, RTMPSocketCompatible {
     }
 
     @objc private func on(timer:Timer) {
-        guard (Double(delay) / 60) < abs(lastResponse.timeIntervalSinceNow), !isRequesting else {
+        guard (Double(delay) / 10) < abs(lastResponse.timeIntervalSinceNow), !isRequesting else {
             return
         }
         idle()
     }
 
     @discardableResult
-    final private func doOutput(bytes:[UInt8]) -> Int {
+    final private func doOutput(data:Data) -> Int {
         guard let connectionID:String = connectionID, connected else {
             return 0
         }
         let index:Int64 = OSAtomicIncrement64(&self.index)
-        doRequest("/send/\(connectionID)/\(index)", Data(c2packet + bytes), listen)
+        doRequest("/send/\(connectionID)/\(index)", c2packet + data, listen)
         c2packet.removeAll()
-        return bytes.count
+        return data.count
     }
 
-    private func doRequest(_ pathComonent: String,_ data:Data,_ completionHandler: @escaping ((Data?, URLResponse?, Error?) -> Void)) {
+    private func doRequest(_ pathComponent: String,_ data:Data,_ completionHandler: @escaping ((Data?, URLResponse?, Error?) -> Void)) {
         isRequesting = true
-        request = URLRequest(url: baseURL.appendingPathComponent(pathComonent))
+        lastRequestPathComponent = pathComponent
+        lastRequestData = data
+        request = URLRequest(url: baseURL.appendingPathComponent(pathComponent))
         request.httpMethod = "POST"
         session.uploadTask(with: request, from: data, completionHandler: completionHandler).resume()
-        if (logger.isEnabledFor(level: .verbose)) {
-            logger.verbose("\(self.request)")
+        if (logger.isEnabledFor(level: .trace)) {
+            logger.trace("\(self.request)")
         }
     }
 }

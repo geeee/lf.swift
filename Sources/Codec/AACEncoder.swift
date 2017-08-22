@@ -119,7 +119,7 @@ final class AACEncoder: NSObject {
         ioData:UnsafeMutablePointer<AudioBufferList>,
         outDataPacketDescription:UnsafeMutablePointer<UnsafeMutablePointer<AudioStreamPacketDescription>?>?,
         inUserData:UnsafeMutableRawPointer?) in
-        return unsafeBitCast(inUserData, to: AACEncoder.self).onInputDataForAudioConverter(
+        return Unmanaged<AACEncoder>.fromOpaque(inUserData!).takeUnretainedValue().onInputDataForAudioConverter(
             ioNumberDataPackets,
             ioData: ioData,
             outDataPacketDescription: outDataPacketDescription
@@ -150,7 +150,7 @@ final class AACEncoder: NSObject {
             _converter = converter
         }
         if (status != noErr) {
-            logger.warning("\(status)")
+            logger.warn("\(status)")
         }
         return _converter!
     }
@@ -171,8 +171,8 @@ final class AACEncoder: NSObject {
             nil,
             currentBufferList!.unsafeMutablePointer,
             bufferListSize,
-            nil,
-            nil,
+            kCFAllocatorDefault,
+            kCFAllocatorDefault,
             0,
             &blockBuffer
         )
@@ -184,16 +184,16 @@ final class AACEncoder: NSObject {
         }
 
         var ioOutputDataPacketSize:UInt32 = 1
-        let dataLength:Int = CMBlockBufferGetDataLength(blockBuffer!)
+        let dataLength:Int = blockBuffer!.dataLength
         let outOutputData:UnsafeMutableAudioBufferListPointer = AudioBufferList.allocate(maximumBuffers: 1)
         outOutputData[0].mNumberChannels = inDestinationFormat.mChannelsPerFrame
         outOutputData[0].mDataByteSize = UInt32(dataLength)
-        outOutputData[0].mData = malloc(dataLength)
+        outOutputData[0].mData = UnsafeMutableRawPointer.allocate(bytes: dataLength, alignedTo: 0)
 
         let status:OSStatus = AudioConverterFillComplexBuffer(
             converter,
             inputDataProc,
-            unsafeBitCast(self, to: UnsafeMutableRawPointer.self),
+            Unmanaged.passUnretained(self).toOpaque(),
             &ioOutputDataPacketSize,
             outOutputData.unsafeMutablePointer,
             nil
@@ -212,6 +212,7 @@ final class AACEncoder: NSObject {
         for i in 0..<outOutputData.count {
             free(outOutputData[i].mData)
         }
+    
         free(outOutputData.unsafeMutablePointer)
     }
 
@@ -264,12 +265,5 @@ extension AACEncoder: Runnable {
             self.currentBufferList = nil
             self.running = false
         }
-    }
-}
-
-extension AACEncoder: AVCaptureAudioDataOutputSampleBufferDelegate {
-    // MARK: AVCaptureAudioDataOutputSampleBufferDelegate
-    func captureOutput(_ captureOutput:AVCaptureOutput!, didOutputSampleBuffer sampleBuffer:CMSampleBuffer!, from connection:AVCaptureConnection!) {
-        encodeSampleBuffer(sampleBuffer)
     }
 }
