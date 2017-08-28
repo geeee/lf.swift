@@ -1,6 +1,6 @@
 Pod::Spec.new do |s|
 
-  s.name         = "lf"
+  s.name         = "HaishinKit"
   s.version      = "0.7.4"
   s.summary      = "Camera and Microphone streaming library via RTMP, HLS for iOS, macOS, tvOS."
 
@@ -28,3 +28,4 @@ Pod::Spec.new do |s|
   s.dependency 'Logboard', '~> 1.0.1'
 
 end
+
