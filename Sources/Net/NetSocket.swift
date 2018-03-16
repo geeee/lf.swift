@@ -81,14 +81,18 @@ public class NetSocket: NSObject {
 
     func close(isDisconnected:Bool) {
         outputQueue.async {
-            guard let runloop:RunLoop = self.runloop else {
-                return
-            }
-            self.deinitConnection(isDisconnected: isDisconnected)
-            self.runloop = nil
-            CFRunLoopStop(runloop.getCFRunLoop())
-            logger.trace("isDisconnected:\(isDisconnected)")
+            self.stop(isDisconnected: isDisconnected)
         }
+    }
+
+    func stop(isDisconnected:Bool) {
+        guard let runloop:RunLoop = self.runloop else {
+            return
+        }
+        self.deinitConnection(isDisconnected: isDisconnected)
+        self.runloop = nil
+        CFRunLoopStop(runloop.getCFRunLoop())
+        logger.trace("isDisconnected:\(isDisconnected)")
     }
 
     func listen() {

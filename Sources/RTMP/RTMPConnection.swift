@@ -299,6 +299,10 @@ open class RTMPConnection: EventDispatcher {
         timer = nil
     }
 
+    open func stop() {
+        self.socket.stop(isDisconnected: false)
+    }
+
     func createStream(_ stream: RTMPStream) {
         let responder:Responder = Responder(result: { (data) -> Void in
             guard let id:Double = data[0] as? Double else {

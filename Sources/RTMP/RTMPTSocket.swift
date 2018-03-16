@@ -122,6 +122,10 @@ final class RTMPTSocket: NSObject, RTMPSocketCompatible {
         doRequest("/close/\(connectionID)", Data(), didClose)
     }
 
+    func stop(isDisconnected: Bool) {
+        close(isDisconnected: isDisconnected)
+    }
+
     private func listen(data:Data?, response:URLResponse?, error:Error?) {
 
         lastResponse = Date()

@@ -16,6 +16,7 @@ protocol RTMPSocketCompatible: class {
     @discardableResult
     func doOutput(chunk:RTMPChunk, locked:UnsafeMutablePointer<UInt32>?) -> Int
     func close(isDisconnected:Bool)
+    func stop(isDisconnected: Bool)
     func connect(withName:String, port:Int)
     func deinitConnection(isDisconnected:Bool)
 }
