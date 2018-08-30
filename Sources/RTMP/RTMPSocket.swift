@@ -16,6 +16,7 @@ protocol RTMPSocketCompatible: class {
     @discardableResult
     func doOutput(chunk:RTMPChunk, locked:UnsafeMutablePointer<UInt32>?) -> Int
     func close(isDisconnected:Bool)
+    func stop(isDisconnected: Bool)
     func connect(withName:String, port:Int)
     func deinitConnection(isDisconnected:Bool)
 }
@@ -25,6 +26,7 @@ protocol RTMPSocketDelegate: IEventDispatcher {
     func listen(_ data:Data)
     func didSetReadyState(_ readyState:RTMPSocket.ReadyState)
     func didSetTotalBytesIn(_ totalBytesIn:Int64)
+    func didSendRTMPChunk(_ chunk:RTMPChunk)
 }
 
 // MARK: -
@@ -73,13 +75,17 @@ final class RTMPSocket: NetSocket, RTMPSocketCompatible {
     private var events:[Event] = []
     private var handshake:RTMPHandshake = RTMPHandshake()
 
+    override func onChunkSent(_ chunk: RTMPChunk) {
+        delegate?.didSendRTMPChunk(chunk);
+    }
+
     @discardableResult
     func doOutput(chunk:RTMPChunk, locked:UnsafeMutablePointer<UInt32>? = nil) -> Int {
         let chunks:[Data] = chunk.split(chunkSizeS)
         for i in 0..<chunks.count - 1 {
             doOutput(data: chunks[i])
         }
-        doOutput(data: chunks.last!, locked: locked)
+        doOutput(data: chunks.last!, locked: locked, ofChunk: chunk)
         if (logger.isEnabledFor(level: .trace)) {
             logger.trace(chunk.description)
         }

@@ -227,6 +227,8 @@ open class RTMPConnection: EventDispatcher {
     fileprivate var previousTotalBytesIn:Int64 = 0
     fileprivate var previousTotalBytesOut:Int64 = 0
 
+    public var onChunkSent:((RTMPChunk) -> Void)?
+
     override public init() {
         super.init()
         addEventListener(Event.RTMP_STATUS, selector: #selector(RTMPConnection.on(status:)))
@@ -297,6 +299,10 @@ open class RTMPConnection: EventDispatcher {
         }
         socket.close(isDisconnected: false)
         timer = nil
+    }
+
+    open func stop() {
+        self.socket.stop(isDisconnected: false)
     }
 
     func createStream(_ stream: RTMPStream) {
@@ -467,6 +473,10 @@ extension RTMPConnection: RTMPSocketDelegate {
             message: RTMPAcknowledgementMessage(UInt32(totalBytesIn))
         ), locked: nil)
         sequence += 1
+    }
+
+    func didSendRTMPChunk(_ chunk: RTMPChunk) {
+        self.onChunkSent?(chunk);
     }
 
     func listen(_ data:Data) {

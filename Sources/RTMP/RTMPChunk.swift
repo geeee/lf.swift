@@ -34,7 +34,7 @@ enum RTMPChunkType: UInt8 {
     }
 }
 
-final class RTMPChunk {
+public final class RTMPChunk {
     enum StreamID: UInt16 {
         case control = 0x02
         case command = 0x03
@@ -274,7 +274,7 @@ final class RTMPChunk {
 
 extension RTMPChunk: CustomStringConvertible {
     // MARK: CustomStringConvertible
-    var description:String {
+    public var description:String {
         return Mirror(reflecting: self).description
     }
 }

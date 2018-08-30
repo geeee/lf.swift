@@ -21,8 +21,11 @@ public class NetSocket: NSObject {
     private let outputQueue:DispatchQueue = DispatchQueue(label: "com.haishinkit.HaishinKit.NetSocket.output")
     fileprivate var timeoutHandler:(() -> Void)?
 
+    open func onChunkSent(_ chunk: RTMPChunk) {
+    }
+
     @discardableResult
-    final public func doOutput(data:Data, locked:UnsafeMutablePointer<UInt32>? = nil) -> Int {
+    final public func doOutput(data: Data, locked: UnsafeMutablePointer<UInt32>? = nil, ofChunk: RTMPChunk? = nil) -> Int {
         OSAtomicAdd64(Int64(data.count), &queueBytesOut)
         outputQueue.async {
             data.withUnsafeBytes { (buffer:UnsafePointer<UInt8>) -> Void in
@@ -30,6 +33,9 @@ public class NetSocket: NSObject {
             }
             if (locked != nil) {
                 OSAtomicAnd32Barrier(0, locked!)
+            }
+            if (ofChunk != nil) {
+                self.onChunkSent(ofChunk!)
             }
         }
         return data.count
@@ -81,14 +87,18 @@ public class NetSocket: NSObject {
 
     func close(isDisconnected:Bool) {
         outputQueue.async {
-            guard let runloop:RunLoop = self.runloop else {
-                return
-            }
-            self.deinitConnection(isDisconnected: isDisconnected)
-            self.runloop = nil
-            CFRunLoopStop(runloop.getCFRunLoop())
-            logger.trace("isDisconnected:\(isDisconnected)")
+            self.stop(isDisconnected: isDisconnected)
         }
+    }
+
+    func stop(isDisconnected:Bool) {
+        guard let runloop:RunLoop = self.runloop else {
+            return
+        }
+        self.deinitConnection(isDisconnected: isDisconnected)
+        self.runloop = nil
+        CFRunLoopStop(runloop.getCFRunLoop())
+        logger.trace("isDisconnected:\(isDisconnected)")
     }
 
     func listen() {
