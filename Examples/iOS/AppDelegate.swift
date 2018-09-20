@@ -3,24 +3,22 @@ import AVFoundation
 import Logboard
 import HaishinKit
 
-let logger:Logboard = Logboard.with("com.haishinkit.Exsample.iOS")
+let logger: Logboard = Logboard.with("com.haishinkit.Exsample.iOS")
 
 @UIApplicationMain
-class AppDelegate: UIResponder, UIApplicationDelegate {
+final class AppDelegate: UIResponder, UIApplicationDelegate {
+    var window: UIWindow?
 
-    var window:UIWindow?
-
-    func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplicationLaunchOptionsKey : Any]? = nil) -> Bool {
+    func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplicationLaunchOptionsKey: Any]? = nil) -> Bool {
+        Logboard.with(HaishinKitIdentifier).level = .trace
+        let session: AVAudioSession = AVAudioSession.sharedInstance()
         do {
-            try AVAudioSession.sharedInstance().setPreferredSampleRate(44_100)
-            try AVAudioSession.sharedInstance().setCategory(AVAudioSessionCategoryPlayAndRecord)
-            try AVAudioSession.sharedInstance().setMode(AVAudioSessionModeDefault)
-            try AVAudioSession.sharedInstance().setActive(true)
+            try session.setPreferredSampleRate(44_100)
+            try session.setCategory(AVAudioSessionCategoryPlayAndRecord, with: .allowBluetooth)
+            try session.setMode(AVAudioSessionModeDefault)
+            try session.setActive(true)
         } catch {
         }
-        
-        Logboard.with(HaishinKit.identifier).level = .trace
-
         return true
     }
 }
