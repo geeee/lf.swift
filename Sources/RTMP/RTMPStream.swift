@@ -290,6 +290,7 @@ open class RTMPStream: NetStream {
 
     var audioTimestamp:Double = 0
     var videoTimestamp:Double = 0
+    public var useOriginalTimestamps:Bool = false
     public let muxer:RTMPMuxer = RTMPMuxer()
     fileprivate var paused:Bool = false
     fileprivate var sampler:MP4Sampler? = nil
@@ -655,10 +656,11 @@ extension RTMPStream: RTMPMuxerDelegate {
             return
         }
         let type:FLVTagType = .audio
+        let timestamp = useOriginalTimestamps ? muxer.audioTimestamp.seconds * 1000 : audioTimestamp
         let length:Int = rtmpConnection.socket.doOutput(chunk: RTMPChunk(
-            type: audioWasSent ? .one : .zero,
+            type: (audioWasSent && !useOriginalTimestamps) ? .one : .zero,
             streamId: type.streamId,
-            message: RTMPAudioMessage(streamId: id, timestamp: UInt32(audioTimestamp), payload: buffer)
+            message: RTMPAudioMessage(streamId: id, timestamp: UInt32(timestamp), payload: buffer)
         ), locked: nil)
         audioWasSent = true
         OSAtomicAdd64(Int64(length), &info.byteCount)
@@ -671,10 +673,11 @@ extension RTMPStream: RTMPMuxerDelegate {
         }
         let type:FLVTagType = .video
         OSAtomicOr32Barrier(1, &mixer.videoIO.encoder.locked)
+        let timestamp = useOriginalTimestamps ? muxer.videoTimestamp.seconds * 1000 : videoTimestamp
         let length:Int = rtmpConnection.socket.doOutput(chunk: RTMPChunk(
-            type: videoWasSent ? .one : .zero,
+            type: (videoWasSent && !useOriginalTimestamps) ? .one : .zero,
             streamId: type.streamId,
-            message: RTMPVideoMessage(streamId: id, timestamp: UInt32(videoTimestamp), payload: buffer)
+            message: RTMPVideoMessage(streamId: id, timestamp: UInt32(timestamp), payload: buffer)
         ), locked: &mixer.videoIO.encoder.locked)
         videoWasSent = true
         OSAtomicAdd64(Int64(length), &info.byteCount)

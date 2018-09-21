@@ -13,8 +13,8 @@ public final class RTMPMuxer {
 
     weak var delegate:RTMPMuxerDelegate? = nil
     fileprivate var configs:[Int:Data] = [:]
-    fileprivate var audioTimestamp:CMTime = kCMTimeZero
-    fileprivate var videoTimestamp:CMTime = kCMTimeZero
+    var audioTimestamp:CMTime = kCMTimeZero
+    var videoTimestamp:CMTime = kCMTimeZero
 
     func dispose() {
         configs.removeAll()
@@ -42,8 +42,8 @@ extension RTMPMuxer: AudioEncoderDelegate {
         }
         var buffer:Data = Data([RTMPMuxer.aac, FLVAACPacketType.raw.rawValue])
         buffer.append(data)
-        delegate?.sampleOutput(audio: buffer, withTimestamp: delta, muxer: self)
         audioTimestamp = presentationTimeStamp
+        delegate?.sampleOutput(audio: buffer, withTimestamp: delta, muxer: self)
     }
 }
 
@@ -77,8 +77,8 @@ extension RTMPMuxer: VideoEncoderDelegate {
         var buffer:Data = Data([((keyframe ? FLVFrameType.key.rawValue : FLVFrameType.inter.rawValue) << 4) | FLVVideoCodec.avc.rawValue, FLVAVCPacketType.nal.rawValue])
         buffer.append(contentsOf: compositionTime.bigEndian.data[1..<4])
         buffer.append(data)
-        delegate?.sampleOutput(video: buffer, withTimestamp: delta, muxer: self)
         videoTimestamp = decodeTimeStamp
+        delegate?.sampleOutput(video: buffer, withTimestamp: delta, muxer: self)
     }
 }
 
