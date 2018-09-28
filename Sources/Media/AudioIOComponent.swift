@@ -1,39 +1,38 @@
-import Foundation
 import AVFoundation
 
 final class AudioIOComponent: IOComponent {
-    var encoder:AACEncoder = AACEncoder()
-    var playback:AudioStreamPlayback = AudioStreamPlayback()
-    let lockQueue:DispatchQueue = DispatchQueue(label: "com.haishinkit.HaishinKit.AudioIOComponent.lock")
+    lazy var encoder: AACEncoder = AACEncoder()
+    lazy var playback: AudioStreamPlayback = AudioStreamPlayback()
+    let lockQueue = DispatchQueue(label: "com.haishinkit.HaishinKit.AudioIOComponent.lock")
 
 #if os(iOS) || os(macOS)
-    var input:AVCaptureDeviceInput? = nil {
+    var input: AVCaptureDeviceInput? {
         didSet {
-            guard let mixer:AVMixer = mixer, oldValue != input else {
+            guard let mixer: AVMixer = mixer, oldValue != input else {
                 return
             }
-            if let oldValue:AVCaptureDeviceInput = oldValue {
+            if let oldValue: AVCaptureDeviceInput = oldValue {
                 mixer.session.removeInput(oldValue)
             }
-            if let input:AVCaptureDeviceInput = input, mixer.session.canAddInput(input) {
+            if let input: AVCaptureDeviceInput = input, mixer.session.canAddInput(input) {
                 mixer.session.addInput(input)
             }
         }
     }
 
-    private var _output:AVCaptureAudioDataOutput? = nil
-    var output:AVCaptureAudioDataOutput! {
+    private var _output: AVCaptureAudioDataOutput?
+    var output: AVCaptureAudioDataOutput! {
         get {
-            if (_output == nil) {
+            if _output == nil {
                 _output = AVCaptureAudioDataOutput()
             }
             return _output
         }
         set {
-            if (_output == newValue) {
+            if _output == newValue {
                 return
             }
-            if let output:AVCaptureAudioDataOutput = _output {
+            if let output: AVCaptureAudioDataOutput = _output {
                 output.setSampleBufferDelegate(nil, queue: nil)
                 mixer?.session.removeOutput(output)
             }
@@ -47,9 +46,14 @@ final class AudioIOComponent: IOComponent {
         encoder.lockQueue = lockQueue
     }
 
+    func appendSampleBuffer(_ sampleBuffer: CMSampleBuffer) {
+        mixer?.recorder.appendSampleBuffer(sampleBuffer, mediaType: .audio)
+        encoder.encodeSampleBuffer(sampleBuffer)
+    }
+
 #if os(iOS) || os(macOS)
-    func attachAudio(_ audio:AVCaptureDevice?, automaticallyConfiguresApplicationAudioSession:Bool) throws {
-        guard let mixer:AVMixer = mixer else {
+    func attachAudio(_ audio: AVCaptureDevice?, automaticallyConfiguresApplicationAudioSession: Bool) throws {
+        guard let mixer: AVMixer = mixer else {
             return
         }
 
@@ -61,7 +65,7 @@ final class AudioIOComponent: IOComponent {
         output = nil
         encoder.invalidate()
 
-        guard let audio:AVCaptureDevice = audio else {
+        guard let audio: AVCaptureDevice = audio else {
             input = nil
             return
         }
@@ -86,9 +90,7 @@ final class AudioIOComponent: IOComponent {
 
 extension AudioIOComponent: AVCaptureAudioDataOutputSampleBufferDelegate {
     // MARK: AVCaptureAudioDataOutputSampleBufferDelegate
-    func captureOutput(_ captureOutput:AVCaptureOutput!, didOutputSampleBuffer sampleBuffer:CMSampleBuffer!, from connection:AVCaptureConnection!) {
-        mixer?.recorder.appendSampleBuffer(sampleBuffer, mediaType: AVMediaTypeAudio)
-        encoder.encodeSampleBuffer(sampleBuffer)
+    func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
+        appendSampleBuffer(sampleBuffer)
     }
 }
-

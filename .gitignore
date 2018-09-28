@@ -19,4 +19,7 @@ build/lf.build/Release-iphoneos/lf.build/dgph
 
 Cartfile.resolved
 Carthage/*
+
+Package.resolved
+
 .idea/*

@@ -1,22 +1,27 @@
-import Foundation
 import AVFoundation
 
+extension CGRect {
+    var aspectRatio: CGFloat {
+        return width / height
+    }
+}
+
 final class VideoGravityUtil {
-    @inline(__always) static func calclute(_ videoGravity:String, inRect:inout CGRect, fromRect:inout CGRect) {
+    @inline(__always) static func calculate(_ videoGravity: AVLayerVideoGravity, inRect: inout CGRect, fromRect: inout CGRect) {
         switch videoGravity {
-        case AVLayerVideoGravityResizeAspect:
+        case .resizeAspect:
             resizeAspect(&inRect, fromRect: &fromRect)
-        case AVLayerVideoGravityResizeAspectFill:
+        case .resizeAspectFill:
             resizeAspectFill(&inRect, fromRect: &fromRect)
         default:
             break
         }
     }
 
-    @inline(__always) static func resizeAspect(_ inRect:inout CGRect, fromRect:inout CGRect) {
-        let xRatio:CGFloat = inRect.width / fromRect.width
-        let yRatio:CGFloat = inRect.height / fromRect.height
-        if (yRatio < xRatio) {
+    @inline(__always) static func resizeAspect(_ inRect: inout CGRect, fromRect: inout CGRect) {
+        let xRatio: CGFloat = inRect.width / fromRect.width
+        let yRatio: CGFloat = inRect.height / fromRect.height
+        if yRatio < xRatio {
             inRect.origin.x = (inRect.size.width - fromRect.size.width * yRatio) / 2
             inRect.size.width = fromRect.size.width * yRatio
         } else {
@@ -25,10 +30,10 @@ final class VideoGravityUtil {
         }
     }
 
-    @inline(__always) static func resizeAspectFill(_ inRect:inout CGRect, fromRect:inout CGRect) {
-        let inRectAspect:CGFloat = inRect.size.width / inRect.size.height
-        let fromRectAspect:CGFloat = fromRect.size.width / fromRect.size.height
-        if (inRectAspect < fromRectAspect) {
+    @inline(__always) static func resizeAspectFill(_ inRect: inout CGRect, fromRect: inout CGRect) {
+        let inRectAspect: CGFloat = inRect.aspectRatio
+        let fromRectAspect: CGFloat = fromRect.aspectRatio
+        if inRectAspect < fromRectAspect {
             inRect.origin.x += (inRect.size.width - inRect.size.height * fromRectAspect) / 2
             inRect.size.width = inRect.size.height * fromRectAspect
         } else {
