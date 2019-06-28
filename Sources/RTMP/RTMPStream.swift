@@ -218,6 +218,7 @@ open class RTMPStream: NetStream {
     public static let defaultAudioBitrate: UInt32 = AACEncoder.defaultBitrate
     public static let defaultVideoBitrate: UInt32 = H264Encoder.defaultBitrate
     weak open var qosDelegate: RTMPStreamDelegate?
+    weak open var metadataDelegate: RTMPStreamMetadataDelegate?
     open internal(set) var info: RTMPStreamInfo = RTMPStreamInfo()
     open private(set) var objectEncoding: UInt8 = RTMPConnection.defaultObjectEncoding
     @objc open private(set) dynamic var currentFPS: UInt16 = 0
@@ -238,7 +239,7 @@ open class RTMPStream: NetStream {
                 mixer.stopPlaying()
             case .publishing:
                 #if os(iOS)
-                    mixer.videoIO.screen?.stopRunning()
+                mixer.videoIO.screen?.stopRunning()
                 #endif
                 mixer.audioIO.encoder.delegate = nil
                 mixer.videoIO.encoder.delegate = nil
@@ -263,7 +264,7 @@ open class RTMPStream: NetStream {
                 muxer.dispose()
                 muxer.delegate = self
                 #if os(iOS)
-                    mixer.videoIO.screen?.startRunning()
+                mixer.videoIO.screen?.startRunning()
                 #endif
                 mixer.audioIO.encoder.delegate = muxer
                 mixer.videoIO.encoder.delegate = muxer
@@ -576,6 +577,9 @@ open class RTMPStream: NetStream {
             metadata["audiodatarate"] = mixer.audioIO.encoder.bitrate
         }
 #endif
+        if let externalMetadata = self.metadataDelegate?.replaceMetadata(metadata) {
+            metadata = externalMetadata
+        }
         return metadata
     }
 
